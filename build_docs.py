@@ -152,7 +152,7 @@ class Version:
     @staticmethod
     def current_stable():
         """Find the current stable cPython version."""
-        return max([v for v in VERSIONS if v.status == "stable"], key=Version.as_tuple)
+        return max((v for v in VERSIONS if v.status == "stable"), key=Version.as_tuple)
 
     @staticmethod
     def current_dev():
@@ -164,9 +164,7 @@ class Version:
         """Forge the label of a version picker."""
         if self.status == "in development":
             return f"dev ({self.name})"
-        if self.status == "pre-release":
-            return f"pre ({self.name})"
-        return self.name
+        return f"pre ({self.name})" if self.status == "pre-release" else self.name
 
     def setup_indexsidebar(self, dest_path):
         """Build indexsidebar.html for Sphinx."""
@@ -299,7 +297,7 @@ def changed_files(left, right):
         for file in dircmp_result.diff_files:
             changed.append(str(base / file))
             if file == "index.html":
-                changed.append(str(base) + "/")
+                changed.append(f"{str(base)}/")
         for dircomp in dircmp_result.subdirs.values():
             traverse(dircomp)
 
@@ -384,7 +382,7 @@ def translation_branch(locale_repo, locale_clone_dir, needed_version: str):
     git_clone(locale_repo, locale_clone_dir)
     remote_branches = run(["git", "-C", locale_clone_dir, "branch", "-r"]).stdout
     branches = re.findall(r"/([0-9]+\.[0-9]+)$", remote_branches, re.M)
-    return "origin/" + locate_nearest_version(branches, needed_version)
+    return f"origin/{locate_nearest_version(branches, needed_version)}"
 
 
 @contextmanager
@@ -395,7 +393,7 @@ def edit(file: Path):
         for line in i:
             o.write(line.replace("localhoat", "localhost"))
     """
-    temporary = file.with_name(file.name + ".tmp")
+    temporary = file.with_name(f"{file.name}.tmp")
     with suppress(FileNotFoundError):
         temporary.unlink()
     with open(file, encoding="UTF-8") as input_file:
@@ -733,10 +731,10 @@ class DocBuilder(
                 "make",
                 "-C",
                 self.checkout / "Doc",
-                "PYTHON=" + str(python),
-                "SPHINXBUILD=" + str(sphinxbuild),
-                "BLURB=" + str(blurb),
-                "VENVDIR=" + str(self.venv),
+                f"PYTHON={str(python)}",
+                f"SPHINXBUILD={str(sphinxbuild)}",
+                f"BLURB={str(blurb)}",
+                f"VENVDIR={str(self.venv)}",
                 "SPHINXOPTS=" + " ".join(sphinxopts),
                 "SPHINXERRORHANDLING=",
                 maketarget,
@@ -757,7 +755,7 @@ class DocBuilder(
         So we can reuse them from builds to builds, while they contain
         different Sphinx versions.
         """
-        venv_path = self.build_root / ("venv-" + self.version.name)
+        venv_path = self.build_root / f"venv-{self.version.name}"
         run([sys.executable, "-m", "venv", venv_path])
         run(
             [venv_path / "bin" / "python", "-m", "pip", "install"]
@@ -804,7 +802,7 @@ class DocBuilder(
             [
                 "chown",
                 "-R",
-                ":" + self.group,
+                f":{self.group}",
                 self.checkout / "Doc" / "build" / "html/",
             ]
         )
@@ -845,14 +843,7 @@ class DocBuilder(
             )
         if not self.quick:
             logging.debug("Copying dist files")
-            run(
-                [
-                    "chown",
-                    "-R",
-                    ":" + self.group,
-                    self.checkout / "Doc" / "dist",
-                ]
-            )
+            run(["chown", "-R", f":{self.group}", self.checkout / "Doc" / "dist"])
             run(
                 [
                     "chmod",
@@ -862,7 +853,7 @@ class DocBuilder(
                 ]
             )
             run(["mkdir", "-m", "o+rx", "-p", target / "archives"])
-            run(["chown", ":" + self.group, target / "archives"])
+            run(["chown", f":{self.group}", target / "archives"])
             run(
                 [
                     "cp",
@@ -876,14 +867,14 @@ class DocBuilder(
             )
             changed.append("archives/")
             for file in (target / "archives").iterdir():
-                changed.append("archives/" + file.name)
+                changed.append(f"archives/{file.name}")
 
         logging.info("%s files changed", len(changed))
         if changed and not self.skip_cache_invalidation:
             targets_dir = str(self.www_root)
             prefixes = run(["find", "-L", targets_dir, "-samefile", target]).stdout
-            prefixes = prefixes.replace(targets_dir + "/", "")
-            prefixes = [prefix + "/" for prefix in prefixes.split("\n") if prefix]
+            prefixes = prefixes.replace(f"{targets_dir}/", "")
+            prefixes = [f"{prefix}/" for prefix in prefixes.split("\n") if prefix]
             to_purge = prefixes[:]
             for prefix in prefixes:
                 to_purge.extend(prefix + p for p in changed)
@@ -900,10 +891,7 @@ class DocBuilder(
 
 def symlink(www_root: Path, language: Language, directory: str, name: str, group: str):
     """Used by major_symlinks and dev_symlink to maintain symlinks."""
-    if language.tag == "en":  # english is rooted on /, no /en/
-        path = www_root
-    else:
-        path = www_root / language.tag
+    path = www_root if language.tag == "en" else www_root / language.tag
     link = path / name
     directory_path = path / directory
     if not directory_path.exists():
@@ -913,7 +901,7 @@ def symlink(www_root: Path, language: Language, directory: str, name: str, group
     if link.exists():
         link.unlink()
     link.symlink_to(directory)
-    run(["chown", "-h", ":" + group, str(link)])
+    run(["chown", "-h", f":{group}", str(link)])
     purge_path(www_root, link)
 
 
@@ -960,10 +948,10 @@ def proofread_canonicals(www_root: Path, skip_cache_invalidation: bool) -> None:
         canonical = canonical_re.search(html)
         if not canonical:
             continue
-        target = canonical.group(1)
+        target = canonical[1]
         if not (www_root / target).exists():
             logging.info("Removing broken canonical from %s to %s", file, target)
-            html = html.replace(canonical.group(0), "")
+            html = html.replace(canonical[0], "")
             file.write_text(html, encoding="UTF-8", errors="surrogateescape")
             if not skip_cache_invalidation:
                 url = str(file).replace("/srv/", "https://")
@@ -974,7 +962,7 @@ def proofread_canonicals(www_root: Path, skip_cache_invalidation: bool) -> None:
 def purge_path(www_root: Path, path: Path):
     to_purge = [str(file.relative_to(www_root)) for file in path.glob("**/*")]
     to_purge.append(str(path.relative_to(www_root)))
-    to_purge.append(str(path.relative_to(www_root)) + "/")
+    to_purge.append(f"{str(path.relative_to(www_root))}/")
     run(["curl", "-XPURGE", f"https://docs.python.org/{{{','.join(to_purge)}}}"])
 
 

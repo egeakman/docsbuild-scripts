@@ -36,14 +36,14 @@ def find_sphinx_spec(text: str):
     if found := re.search(
         """sphinx[=<>~]{1,2}[0-9.]{3,}|needs_sphinx = [0-9.'"]*""", text, flags=re.I
     ):
-        return found.group(0).replace(" ", "")
+        return found[0].replace(" ", "")
     return "ø"
 
 
 def find_sphinx_in_file(repo: git.Repo, branch, filename):
     upstream = remote_by_url(repo, "github.com.python").name
     # Just in case you don't use origin/:
-    branch = branch.replace("origin/", upstream + "/")
+    branch = branch.replace("origin/", f"{upstream}/")
     try:
         return find_sphinx_spec(repo.git.show(f"{branch}:{filename}"))
     except git.exc.GitCommandError:
@@ -62,17 +62,16 @@ CONF_FILES = {
 
 def search_sphinx_versions_in_cpython(repo: git.Repo):
     repo.git.fetch("https://github.com/python/cpython")
-    table = []
-    for version in sorted(build_docs.VERSIONS):
-        table.append(
-            [
-                version.name,
-                *[
-                    find_sphinx_in_file(repo, version.branch_or_tag, filename)
-                    for filename in CONF_FILES.values()
-                ],
-            ]
-        )
+    table = [
+        [
+            version.name,
+            *[
+                find_sphinx_in_file(repo, version.branch_or_tag, filename)
+                for filename in CONF_FILES.values()
+            ],
+        ]
+        for version in sorted(build_docs.VERSIONS)
+    ]
     print(tabulate(table, headers=["version", *CONF_FILES.keys()], tablefmt="rst"))
 
 
@@ -87,7 +86,7 @@ async def get_version_in_prod(language, version):
     if created_using := re.search(
         r"(?:sphinx.pocoo.org|www.sphinx-doc.org).*?([0-9.]+[0-9])", text, flags=re.M
     ):
-        return created_using.group(1)
+        return created_using[1]
     return "ø"
 
 
